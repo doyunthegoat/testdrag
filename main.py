@@ -31,10 +31,13 @@ weather_option = st.sidebar.selectbox(
 
 if "맑음" in weather_option:
     mu = 0.8
+    weather_type = "dry"
 elif "비" in weather_option:
     mu = 0.4
+    weather_type = "rain"
 else:
     mu = 0.1
+    weather_type = "ice"
 
 # 1-2. 곡선 반경 (r) 설정
 radius = st.sidebar.slider(
@@ -85,7 +88,7 @@ else:
 st.markdown("---")
 
 # =============================================================================
-# 4. HTML5 Canvas 기반 가드레일/나무/충돌 스파크 애니메이션 Component
+# 4. HTML5 Canvas 동적 곡률 & 날씨 텍스처 시뮬레이션 Component
 # =============================================================================
 st.subheader("🎬 2D 커브길 주행 시뮬레이션")
 
@@ -93,7 +96,8 @@ sim_params = {
     "is_safe": bool(is_safe),
     "radius": int(radius),
     "user_speed": int(user_speed_kmh),
-    "max_speed": float(v_max_kmh)
+    "max_speed": float(v_max_kmh),
+    "weather": weather_type
 }
 
 canvas_html = f"""
@@ -131,7 +135,7 @@ canvas_html = f"""
         background-color: #d33838;
     }}
     canvas {{
-        background: #19231a; /* 주변 잔디밭 색상 */
+        background: #19231a;
         border-radius: 12px;
         box-shadow: 0 8px 24px rgba(0,0,0,0.4);
     }}
@@ -142,7 +146,7 @@ canvas_html = f"""
 <div id="controls">
     <button class="btn" onclick="startSimulation()">▶️ 시뮬레이션 시작</button>
 </div>
-<canvas id="simCanvas" width="800" height="450"></canvas>
+<canvas id="simCanvas" width="800" height="480"></canvas>
 
 <script>
 const config = {json.dumps(sim_params)};
@@ -154,48 +158,50 @@ let progress = 0;
 let isAnimating = false;
 let sparks = [];
 
-// 트랙 매개변수
-const centerX = 120;
-const centerY = 400;
-const trackR = 250;
-const roadWidth = 70;
+// [핵심] 슬라이더의 곡선 반경 r(20~200m) 값에 따라 화면 상의 원 반지름과 중심을 동적으로 계산
+// r이 작을수록(20m) 커브가 아주 급하게 꺾이고, r이 클수록(200m) 도로가 완만해짐
+const minR = 20, maxR = 200;
+const normR = (config.radius - minR) / (maxR - minR); // 0.0 ~ 1.0
 
-// 고정 나무 위치 배열
+// 반지름 변환: 급커브(130px) ~ 완만커브(420px)
+const trackR = 130 + normR * 290;
+
+// 곡률에 맞춰 중심점(CenterX, CenterY) 동적 이동
+const centerX = 80 - normR * 120;
+const centerY = 440 + normR * 150;
+
+const roadWidth = 75;
+
+// 나무 위치
 const trees = [
-    {{ x: 420, y: 80, r: 22 }},
-    {{ x: 490, y: 150, r: 26 }},
-    {{ x: 530, y: 240, r: 24 }},
-    {{ x: 520, y: 340, r: 28 }},
-    {{ x: 70, y: 80, r: 20 }},
-    {{ x: 280, y: 300, r: 18 }}
+    {{ x: 480, y: 80, r: 24 }},
+    {{ x: 580, y: 160, r: 28 }},
+    {{ x: 620, y: 280, r: 26 }},
+    {{ x: 590, y: 390, r: 30 }},
+    {{ x: 80, y: 70, r: 20 }}
 ];
 
-// 나무 그리기
 function drawTree(x, y, r) {{
-    // 그림자
     ctx.fillStyle = "rgba(0,0,0,0.25)";
     ctx.beginPath();
     ctx.ellipse(x + 5, y + 5, r, r * 0.7, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // 나뭇잎
-    ctx.fillStyle = "#2d5a27";
+    ctx.fillStyle = config.weather === "ice" ? "#2d4a3e" : "#2d5a27";
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = "#3a7233";
+    ctx.fillStyle = config.weather === "ice" ? "#4a7a68" : "#3a7233";
     ctx.beginPath();
     ctx.arc(x - r*0.2, y - r*0.2, r * 0.65, 0, Math.PI * 2);
     ctx.fill();
 }}
 
-// 스파크 이펙트 관리
 function createSparks(x, y) {{
     for (let i = 0; i < 8; i++) {{
         sparks.push({{
-            x: x,
-            y: y,
+            x: x, y: y,
             vx: (Math.random() - 0.5) * 8,
             vy: (Math.random() - 0.5) * 8,
             life: 1.0,
@@ -228,23 +234,55 @@ function updateAndDrawSparks() {{
 function drawScene(carProgress) {{
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 1. 잔디밭 및 나무 렌더링
+    // 1. 잔디 및 나무
     trees.forEach(t => drawTree(t.x, t.y, t.r));
 
-    // 2. 아스팔트 갓길 및 도로 베이스
+    // 2. 아스팔트 노면 베이스 색상 설정
+    let roadColor = "#2c3e50"; // 기본 건조 노면
+    if (config.weather === "rain") roadColor = "#1a252f"; // 젖은 어두운 아스팔트
+    if (config.weather === "ice") roadColor = "#34495e";  # 얼어붙은 푸른 빛 아스팔트
+
+    // 경계석 (Curb)
     ctx.beginPath();
     ctx.arc(centerX, centerY, trackR, -Math.PI / 2, 0, false);
     ctx.lineWidth = roadWidth + 8;
-    ctx.strokeStyle = "#e74c3c"; // 경계석 (빨강/흰색 번갈아 표시는 외곽선으로 대체)
+    ctx.strokeStyle = "#e74c3c";
     ctx.stroke();
 
+    // 메인 아스팔트 도로
     ctx.beginPath();
     ctx.arc(centerX, centerY, trackR, -Math.PI / 2, 0, false);
     ctx.lineWidth = roadWidth;
-    ctx.strokeStyle = "#2c3e50"; // 메인 아스팔트
+    ctx.strokeStyle = roadColor;
     ctx.stroke();
 
-    // 3. 도로 중앙선 (황색 점선)
+    // 3. 날씨별 노면 특수 효과 텍스처 (빗길 물반사 / 빙판길 얼음 얼룩)
+    if (config.weather === "rain") {{
+        // 빗길: 노면 웅덩이 반사 하이라이트
+        ctx.save();
+        ctx.lineWidth = roadWidth - 10;
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
+        ctx.setLineDash([30, 40]);
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, trackR, -Math.PI / 2, 0, false);
+        ctx.stroke();
+        ctx.restore();
+    }} else if (config.weather === "ice") {{
+        // 빙판길: 살얼음(빙판) 하얀 얼룩 반사
+        ctx.save();
+        ctx.lineWidth = roadWidth - 8;
+        ctx.strokeStyle = "rgba(236, 240, 241, 0.35)";
+        ctx.setLineDash([15, 20]);
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, trackR + 10, -Math.PI / 2, 0, false);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, trackR - 10, -Math.PI / 2, 0, false);
+        ctx.stroke();
+        ctx.restore();
+    }}
+
+    // 4. 도로 중앙선 (황색 점선)
     ctx.beginPath();
     ctx.arc(centerX, centerY, trackR, -Math.PI / 2, 0, false);
     ctx.lineWidth = 3;
@@ -253,54 +291,49 @@ function drawScene(carProgress) {{
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // 4. 외곽 가드레일 (외곽 곡선)
+    // 5. 외곽 가드레일
     const guardR = trackR + roadWidth / 2 + 3;
     ctx.beginPath();
     ctx.arc(centerX, centerY, guardR, -Math.PI / 2, 0, false);
     ctx.lineWidth = 5;
-    ctx.strokeStyle = "#bdc3c7"; // 금속 가드레일
+    ctx.strokeStyle = "#bdc3c7";
     ctx.stroke();
 
-    // 가드레일 지지대 기둥
-    for (let a = -Math.PI / 2; a <= 0; a += 0.15) {{
+    for (let a = -Math.PI / 2; a <= 0; a += 0.12) {{
         let px = centerX + guardR * Math.cos(a);
         let py = centerY + guardR * Math.sin(a);
         ctx.fillStyle = "#7f8c8d";
         ctx.fillRect(px - 2, py - 2, 5, 5);
     }}
 
-    // 5. 자동차 위치 및 물리 상태 계산
+    // 6. 자동차 위치 및 물리 상태 계산
     let carX, carY, carAngle;
     let isCollided = false;
     const slipPoint = 0.45;
-    const guardCrashR = trackR + roadWidth / 2 - 10; // 가드레일 충돌 지점
+    const guardCrashR = trackR + roadWidth / 2 - 10;
 
     if (config.is_safe || carProgress <= slipPoint) {{
-        // 정상 코너링
         const angle = -Math.PI / 2 + (Math.PI / 2) * carProgress;
         carX = centerX + trackR * Math.cos(angle);
         carY = centerY + trackR * Math.sin(angle);
         carAngle = angle + Math.PI / 2;
     }} else {{
-        // 이탈 진행
         const angle = -Math.PI / 2 + (Math.PI / 2) * slipPoint;
         const startX = centerX + trackR * Math.cos(angle);
         const startY = centerY + trackR * Math.sin(angle);
         const tangentAngle = angle + Math.PI / 2;
 
-        const over = (carProgress - slipPoint) * 320;
+        const over = (carProgress - slipPoint) * 360;
         let testX = startX + Math.cos(tangentAngle) * over;
         let testY = startY + Math.sin(tangentAngle) * over;
 
-        // 가드레일 충돌 검사 (중심으로부터의 거리)
         let dist = Math.hypot(testX - centerX, testY - centerY);
         if (dist >= guardCrashR) {{
             isCollided = true;
-            // 충돌 지점에 고정
             let crashAngle = Math.atan2(testY - centerY, testX - centerX);
             carX = centerX + guardCrashR * Math.cos(crashAngle);
             carY = centerY + guardCrashR * Math.sin(crashAngle);
-            carAngle = tangentAngle + 0.3; // 충돌로 차체가 살짝 돌아감
+            carAngle = tangentAngle + 0.3;
             createSparks(carX, carY);
         }} else {{
             carX = testX;
@@ -309,7 +342,7 @@ function drawScene(carProgress) {{
         }}
     }}
 
-    // 6. 자동차 그리기
+    // 7. 자동차 렌더링
     ctx.save();
     ctx.translate(carX, carY);
     ctx.rotate(carAngle);
@@ -330,7 +363,7 @@ function drawScene(carProgress) {{
     ctx.roundRect(-carWidth/2, -carHeight/2, carWidth, carHeight, 6);
     ctx.fill();
 
-    // 루프 & 유릿창
+    // 루프
     ctx.fillStyle = "#1e272e";
     ctx.beginPath();
     ctx.roundRect(-carWidth/6, -carHeight/2 + 3, carWidth/3, carHeight - 6, 3);
@@ -343,23 +376,23 @@ function drawScene(carProgress) {{
 
     ctx.restore();
 
-    // 7. 파티클 이펙트 업데이트
+    // 스파크 파티클
     updateAndDrawSparks();
 
-    // 8. 텍스트 지표
+    // 8. 상단 정보 텍스트
     ctx.font = "bold 16px 'Segoe UI', sans-serif";
     if (isCollided) {{
         ctx.fillStyle = "#e74c3c";
-        ctx.fillText("💥 가드레일 충돌 발생!", 20, 40);
+        ctx.fillText("💥 가드레일 충돌 발생!", 20, 35);
     }} else if (carProgress > 0 && !config.is_safe && carProgress > slipPoint) {{
         ctx.fillStyle = "#e67e22";
-        ctx.fillText("⚠️ 원심력으로 이탈 중...", 20, 40);
+        ctx.fillText("⚠️ 원심력으로 도로 이탈 중...", 20, 35);
     }} else if (carProgress > 0) {{
         ctx.fillStyle = "#2ecc71";
-        ctx.fillText("🏎️ 안전하게 코너링 중", 20, 40);
+        ctx.fillText("🏎️ 안전하게 코너링 중", 20, 35);
     }} else {{
         ctx.fillStyle = "#ffffff";
-        ctx.fillText("🏎️ 시뮬레이션 대기 중", 20, 40);
+        ctx.fillText("🏎️ 시뮬레이션 대기 중", 20, 35);
     }}
 }}
 
@@ -370,7 +403,6 @@ function animate() {{
     progress += speedFactor;
 
     if (progress > 1.2) {{
-        // 충돌 상태면 스파크만 조금 더 연출 후 종료
         if (sparks.length === 0) {{
             isAnimating = false;
             return;
@@ -389,14 +421,14 @@ function startSimulation() {{
     animate();
 }}
 
-// 초기 화면
+// 초기 렌더링
 drawScene(0);
 </script>
 </body>
 </html>
 """
 
-components.html(canvas_html, height=500)
+components.html(canvas_html, height=530)
 
 st.markdown("---")
 
