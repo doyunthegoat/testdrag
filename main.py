@@ -1,8 +1,8 @@
-import time
+import json
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as components
 
 # =============================================================================
 # 0. Streamlit 페이지 설정
@@ -68,7 +68,7 @@ speed_diff = user_speed_kmh - v_max_kmh
 is_safe = user_speed_kmh <= v_max_kmh
 
 # =============================================================================
-# 3. 출력 (Output) 단계: 대시보드 및 직관적 현황 카드
+# 3. 출력 (Output) 단계: 대시보드 및 현황 카드
 # =============================================================================
 col1, col2, col3 = st.columns(3)
 
@@ -85,88 +85,204 @@ else:
 st.markdown("---")
 
 # =============================================================================
-# 4. Streamlit 버튼 제어형 2D 주행 애니메이션
+# 4. HTML5 Canvas 기반 60FPS 자동차 매끄러운 2D 애니메이션 Component
 # =============================================================================
-st.subheader("🎬 2D 커브길 주행 애니메이션 시뮬레이션")
+st.subheader("🎬 2D 커브길 주행 시뮬레이션")
 
-# 애니메이션 재생 버튼
-run_anim = st.button("▶️ 커브길 주행 시뮬레이션 시작", use_container_width=True, type="primary")
+# JS 전달용 데이터 팩
+sim_params = {
+    "is_safe": bool(is_safe),
+    "radius": int(radius),
+    "user_speed": int(user_speed_kmh),
+    "max_speed": float(v_max_kmh)
+}
 
-# 그래프가 그려질 동적 프레임 공간
-plot_place = st.empty()
+canvas_html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+    body {{
+        margin: 0;
+        padding: 0;
+        background-color: #0e1117;
+        font-family: 'Segoe UI', sans-serif;
+        color: #ffffff;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }}
+    #controls {{
+        margin-bottom: 12px;
+        display: flex;
+        gap: 15px;
+    }}
+    .btn {{
+        background-color: #ff4b4b;
+        color: white;
+        border: none;
+        padding: 10px 24px;
+        font-size: 16px;
+        font-weight: bold;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.2s;
+    }}
+    .btn:hover {{
+        background-color: #d33838;
+    }}
+    canvas {{
+        background: #1e222b;
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }}
+</style>
+</head>
+<body>
 
-# 도로 궤적 데이터 (90도 곡선)
-theta = np.linspace(0, np.pi / 2, 60)
-x_road = radius * np.cos(theta)
-y_road = radius * np.sin(theta)
+<div id="controls">
+    <button class="btn" onclick="startSimulation()">▶️ 시뮬레이션 시작</button>
+</div>
+<canvas id="simCanvas" width="800" height="420"></canvas>
 
-def create_figure(curr_x, curr_y, car_color, status_text):
-    """현재 차량 위치 데이터를 받아 Plotly Figure를 만들어주는 함수"""
-    fig = go.Figure()
+<script>
+const config = {json.dumps(sim_params)};
+const canvas = document.getElementById("simCanvas");
+const ctx = canvas.getContext("2d");
 
-    # 도로 중앙선 (회색 점선)
-    fig.add_trace(go.Scatter(
-        x=x_road, y=y_road,
-        mode='lines',
-        line=dict(color='gray', width=8, dash='dash'),
-        name='도로 중앙선'
-    ))
+let animId = null;
+let progress = 0;
+let isAnimating = false;
 
-    # 차량 위치
-    fig.add_trace(go.Scatter(
-        x=[curr_x], y=[curr_y],
-        mode='markers+text',
-        marker=dict(size=26, color=car_color, symbol='square'),
-        text=[status_text],
-        textposition="top right",
-        name='차량'
-    ))
+// 트랙 매개변수 설정
+const centerX = 150;
+const centerY = 370;
+const trackR = 240; // 화면 맞춤형 고정 반지름 비율
 
-    fig.update_layout(
-        xaxis=dict(title="X 좌표 (m)", range=[-15, radius + 45], zeroline=False),
-        yaxis=dict(title="Y 좌표 (m)", range=[-15, radius + 45], zeroline=False),
-        height=500,
-        showlegend=False,
-        margin=dict(l=20, r=20, t=30, b=30)
-    )
-    return fig
+function drawScene(carProgress) {{
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-# 애니메이션 연출 로직
-total_steps = 30
-slip_step = int(total_steps * 0.45)
+    // 1. 아스팔트 커브 도로 그리기
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, trackR, -Math.PI / 2, 0, false);
+    ctx.lineWidth = 60;
+    ctx.strokeStyle = "#343a40";
+    ctx.stroke();
 
-if run_anim:
-    # 버튼을 누르면 time.sleep을 이용해 프레임을 순차적으로 업데이트
-    for i in range(total_steps + 1):
-        if is_safe or i <= slip_step:
-            # 정상 코너링 구간
-            angle = (np.pi / 2) * (i / total_steps)
-            curr_x = radius * np.cos(angle)
-            curr_y = radius * np.sin(angle)
-            car_color = "#2ECC71"  # 초록색
-            status_text = "🏎️ 안전 주행 중"
-        else:
-            # 도로 이탈(접선 방향 진행) 구간
-            slip_angle = (np.pi / 2) * (slip_step / total_steps)
-            start_x = radius * np.cos(slip_angle)
-            start_y = radius * np.sin(slip_angle)
+    // 2. 도로 중앙선 (황색 점선)
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, trackR, -Math.PI / 2, 0, false);
+    ctx.lineWidth = 3;
+    ctx.setLineDash([12, 10]);
+    ctx.strokeStyle = "#f1c40f";
+    ctx.stroke();
+    ctx.setLineDash([]); // 원복
 
-            dx = -np.sin(slip_angle)
-            dy = np.cos(slip_angle)
+    // 3. 자동차 위치 및 회전 각도 수치 계산
+    let carX, carY, carAngle;
+    let isSlipped = false;
+    const slipPoint = 0.5; // 커브 중간 지점에서 슬립 발생
 
-            over_step = i - slip_step
-            curr_x = start_x + dx * (radius * 0.04 * over_step)
-            curr_y = start_y + dy * (radius * 0.04 * over_step)
-            car_color = "#E74C3C"  # 빨간색
-            status_text = "💥 원심력으로 이탈 중!"
+    if (config.is_safe || carProgress <= slipPoint) {{
+        // 정상 궤적 (원형 가속)
+        const angle = -Math.PI / 2 + (Math.PI / 2) * carProgress;
+        carX = centerX + trackR * Math.cos(angle);
+        carY = centerY + trackR * Math.sin(angle);
+        carAngle = angle + Math.PI / 2; // 진행 방향 접선 각도
+    }} else {{
+        // 원심력 이탈 궤적 (접선 직선 진행)
+        isSlipped = true;
+        const angle = -Math.PI / 2 + (Math.PI / 2) * slipPoint;
+        const startX = centerX + trackR * Math.cos(angle);
+        const startY = centerY + trackR * Math.sin(angle);
+        const tangentAngle = angle + Math.PI / 2;
 
-        fig = create_figure(curr_x, curr_y, car_color, status_text)
-        plot_place.plotly_chart(fig, use_container_width=True)
-        time.sleep(0.04)  # 매 프레임 간격 (초)
-else:
-    # 버튼 누르기 전 대기 상태 (출발점 표시)
-    fig = create_figure(x_road[0], y_road[0], "#2ECC71", "🏎️ 대기 중")
-    plot_place.plotly_chart(fig, use_container_width=True)
+        const over = (carProgress - slipPoint) * 350;
+        carX = startX + Math.cos(tangentAngle) * over;
+        carY = startY + Math.sin(tangentAngle) * over;
+        carAngle = tangentAngle;
+    }}
+
+    // 4. 자동차 그래픽 랜더링 (차량 형상 직접 그리기)
+    ctx.save();
+    ctx.translate(carX, carY);
+    ctx.rotate(carAngle);
+
+    // 차체 그리기 (세단 스타일)
+    const carWidth = 42;
+    const carHeight = 22;
+
+    // 바퀴 4개
+    ctx.fillStyle = "#111";
+    ctx.fillRect(-carWidth/2 + 6, -carHeight/2 - 3, 10, 4);
+    ctx.fillRect(carWidth/2 - 16, -carHeight/2 - 3, 10, 4);
+    ctx.fillRect(-carWidth/2 + 6, carHeight/2 - 1, 10, 4);
+    ctx.fillRect(carWidth/2 - 16, carHeight/2 - 1, 10, 4);
+
+    // 차체 보디 (안전: 초록/파랑, 슬립: 빨강)
+    ctx.fillStyle = isSlipped ? "#e74c3c" : "#2ecc71";
+    ctx.beginPath();
+    ctx.roundRect(-carWidth/2, -carHeight/2, carWidth, carHeight, 6);
+    ctx.fill();
+
+    // 차량 유리창 (Front/Rear Windshield)
+    ctx.fillStyle = "#2c3e50";
+    ctx.beginPath();
+    ctx.roundRect(-carWidth/6, -carHeight/2 + 3, carWidth/3, carHeight - 6, 3);
+    ctx.fill();
+
+    // 헤드라이트 (진행 방향)
+    ctx.fillStyle = "#f39c12";
+    ctx.fillRect(carWidth/2 - 2, -carHeight/2 + 3, 3, 4);
+    ctx.fillRect(carWidth/2 - 2, carHeight/2 - 7, 3, 4);
+
+    ctx.restore();
+
+    // 5. 상태 안내 텍스트 표시
+    ctx.font = "bold 16px 'Segoe UI', sans-serif";
+    if (isSlipped) {{
+        ctx.fillStyle = "#e74c3c";
+        ctx.fillText("💥 원심력으로 도로 이탈 발생!", 20, 40);
+    }} else if (carProgress > 0) {{
+        ctx.fillStyle = "#2ecc71";
+        ctx.fillText("🏎️ 안전하게 코너링 중", 20, 40);
+    }} else {{
+        ctx.fillStyle = "#aaaaaa";
+        ctx.fillText("🏎️ 시뮬레이션 대기 중", 20, 40);
+    }}
+}}
+
+function animate() {{
+    if (!isAnimating) return;
+    
+    // 주행 속도에 비례한 애니메이션 속도 제어
+    const speedFactor = 0.003 + (config.user_speed / 150) * 0.008;
+    progress += speedFactor;
+
+    if (progress > 1.2) {{
+        isAnimating = false;
+        return;
+    }}
+
+    drawScene(Math.min(progress, 1.2));
+    animId = requestAnimationFrame(animate);
+}}
+
+function startSimulation() {{
+    if (animId) cancelAnimationFrame(animId);
+    progress = 0;
+    isAnimating = true;
+    animate();
+}}
+
+// 초기 화면 렌더링
+drawScene(0);
+</script>
+</body>
+</html>
+"""
+
+components.html(canvas_html, height=480)
 
 st.markdown("---")
 
