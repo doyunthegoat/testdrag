@@ -1,4 +1,4 @@
-import base64
+import html
 import json
 import numpy as np
 import pandas as pd
@@ -89,7 +89,7 @@ else:
 st.markdown("---")
 
 # =============================================================================
-# 4. HTML5 Canvas 시뮬레이션 (Base64 하드코딩 방식으로 문자열 파싱 오류 원천 차단)
+# 4. HTML5 Canvas 시뮬레이션 (JSON 이스케이프 파싱 오류 100% 차단)
 # =============================================================================
 st.subheader("🎬 2D 고속도로 커브길 주행 시뮬레이션")
 
@@ -101,13 +101,367 @@ sim_params = {
     "weather": weather_type
 }
 
-# HTML/JS 코드 전문의 Base64 인코딩 데이터 (f-string 따옴표 에러 완전 차단)
-b64_html_template = "PCFE T0NUWVBFIGh0bWw+Cmh0bWw+Cj headPgo8bWV0YSBjaGFyc2V0PSJ1dGYtOCI+CjxzdHlsZT4KICAgICogeyBib3gtc2l6aW5nOiBib3JkZXItYm94OyBtYXJnaW46IDA7IHBhZGRpbmc6IDA7IH0KICAgIGJvZHkgeyBiYWNrZ3JvdW5kLWNvbG9yOiAjMGUxMTE3OyBmb250LWZhbWlseTogc2Fucy1zZXJpZjsgY29sb3I6ICNmZmY7IGRpc3BsYXk6IGZsZXg7IGZsZXgtZGlyZWN0aW9uOiBjb2x1bW47IGFsaWduLWl0ZW1zOiBjZW50ZXI7IHBhZGRpbmctdG9wOiAxMHB4OyB9CiAgICAuYnRuLWNvbnRhaW5lciB7IG1hcmdpbi1ib3R0b206IDEycHg7IH0KICAgIC5zdGFydC1idG4gewogICAgICAgIGJhY2tncm91bmQ6IGxpbmVhci1ncmFkaWVudCgxMzVkZWcsICNmZjRiNGIsIC1kMzJmMmYpOwogICAgICAgIGNvbG9yOiAjZmZmOwogICAgICAgIGJvcmRlcjogbm9uZTsKICAgICAgICBwYWRkaW5nOiAxMnB4IDMycHg7CiAgICAgICAgZm9udC1zaXplOiAxN3B4OwogICAgICAgIGZvbnQtd2VpZ2h0OiA3MDA7CiAgICAgICAgYm9yZGVyLXJhZGl1czogOHB4OwogICAgICAgIGN1cnNvcjogcG9pbnRlcjsKICAgICAgICBib3gtc2hhZG93OiAwIDRweCAxMnB4IHJnYmEoMjU1LCA3NSwgNzUsIDAuNCk7CiAgICB9CiAgICAuc3RhcnQtYnRuOmhvdmVyIHsgdHJhbnNmb3JtOiB0cmFuc2xhdGVZKC0ycHgpOyB9CiAgICAjc2ltQ2FudmFzIHsgYmFja2dyb3VuZDogIzE0MWMxNTsgYm9yZGVyLXJhZGl1czogMTJweDsgYm94LXNoYWRvdzogMCA4cHggMjRweCByZ2JhKDAsMCwwLDAuNik7IH0KPC9zdHlsZT4KPC9oZWFkPgo8Ym9keT4KPGRpdiBjbGFzcz0iYnRuLWNvbnRhaW5lciI+PGJ1dHRvbiBjbGFzcz0ic3RhcnQtYnRuIiBpZD0ic3RhcnRCdG4iPlLsoS3qso3EroTrm4wg7K287ZW0IHNpbXVsYXRpb24gc3RhcnQ8L2J1dHRvbj48L2Rpdj4KPGNhbnZhcyBpZD0ic2ltQ2FudmFzIiB3aWR0aD0iODIwIiBoZWlnaHQ9IjQ4MCI+PC9jYW52YXM+CjxzY3JpcHQ+CihmdW5jdGlvbigpIHsKICAgIGNvbnN0IGNmZyA9IF9fQ0ZHX0pTT05fXzsKICAgIGNvbnN0IGNhbnZhcyA9IGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCJzaW1DYW52YXMiKTsKICAgIGNvbnN0IGN0eCA9IGNhbnZhcy5nZXRDb250ZXh0KCIyZCIpOwogICAgY29uc3Qgc3RhcnRCdG4gPSBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgic3RhcnRCdG4iKTsKCiAgICBsZXQgYW5pbUlkID0gbnVsbCwgcHJvZ3Jlc3MgPSAwLCBpc1J1bm5pbmcgPSBmYWxzZSwgc3BhcmtzID0gW10sIHJhaW5SaXBwbGVzID0gW107CiAgICBjb25zdCBtaW5SID0gMjAsIG1heFIgPSAyMDAsIG5vcm1SID0gKGNmZy5yYWRpdXMgLSBtaW5SKSAvIChtYXhSIC0gbWluUik7CiAgICBjb25zdCByYWRpdXNYID0gMjIwICsgbm9ybVIgKiAzMjAsIHJhZGl1c1kgPSAzODAgLSBub3JtUiAqIDQwOwogICAgY29uc3QgY2VudGVyWCA9IDQwIC0gbm9ybVIgKiA4MCwgY2VudGVyWSA9IDQ1MCArIG5vcm1SIDogNjAsIHJvYWRXaWR0aCA9IDg1OwogICAgY29uc3QgdHJlZXMgPSBbI3s1MjAsNzAsMjR9LCN7NjMwLDE1MCwyOH0sI3s2ODAsMjcwLDI2fSwjezY1MCwzOTAsMzB9LCN7OTAsNjAsMjB9XTsKICAgIGZvcihsZXQgaT0wO2k8MTI7aSsrKSB7IHJhaW5SaXBwbGVzLnB1c2goe3g6MjAwK01hdGgucmFuZG9tKCkqNDUwLCB5OjgwK01hdGgucmFuZG9tKCkqMzAwLCByOk1hdGgucmFuZG9tKCkqOCwgYWxwaGE6TWF0aC5yYW5kb20oKX0pOyB9CgogICAgZnVuY3Rpb24gZ2V0RWxsaXBzZVBvaW50KGFuZ2xlKSB7CiAgICAgICAgY29uc3QgeCA9IGNlbnRlclggKyByYWRpdXNYICogTWF0aC5jb3MoYW5nbGUpOwogICAgICAgIGNvbnN0IHkgPSBjZW50ZXJZICsgcmFkaXVzWSAqIE1hdGguY29zKGFuZ2xlKTsKICAgICAgICByZXR1cm4geyB4LCB5LCBkeDogLXJhZGl1c1ggKiBNYXRoLnNpbihhbmdsZSksIGR5OiByYWRpdXNZICogTWF0aC5jb3MoYW5nbGUpLCB0YW5nZW50QW5nbGU6IE1hdGguYXRhbjIocmFkaXVzWSAqIE1hdGguY29zKGFuZ2xlKSwgLXJhZGl1c1ggKiBNYXRoLnNpbihhbmdsZSkpIH07CiAgICB9CgogICAgZnVuY3Rpb24gZHJhd1RyZWUoeCwgeSwgcikgewogICAgICAgIGN0eC5maWxsU3R5bGUgPSAicmdiYSgwLDAsMCwwLjI1KSI7IGN0eC5iZWdpblBhdGgoKTsgY3R4LmVsbGlwc2UoeCs0LCB5KzQsIHIsIHIqMC43LCAwLCAwLCBNYXRoLlBJKjIpOyBjdHguZmlsbCgpOwogICAgICAgIGN0eC5maWxsU3R5bGUgPSBjZmcud2VhdGhlciA9PT0gImljZSIgPyAiIzIzNDAzMyIgOiAiIzIxNGUyMSI7IGN0eC5iZWdpblBhdGgoKTsgY3R4LmFyYyh4LCB5LCByLCAwLCBNYXRoLlBJKjIpOyBjdHguZmlsbCgpOwogICAgICAgIGN0eC5maWxsU3R5bGUgPSBjZmcud2VhdGhlciA9PT0gImljZSIgPyAiIzM4NjM1MCIgOiAiIzJlNjgyZSI7IGN0eC5iZWdpblBhdGgoKTsgY3R4LmFyYyh4LXIqMC4yLCB5LXIqMC4yLCByKjAuNjUsIDAsIE1hdGguUEkqMik7IGN0eC5maWxsKCk7CiAgICB9CgogICAgZnVuY3Rpb24gY3JlYXRlU3BhcmtzKHgsIHkpIHsKICAgICAgICBmb3IobGV0IGk9MDtpPDY7aSsrKSB7IHNwYXJrcy5wdXNoKHt4OngsIHk6eSwgdng6KE1hdGgucmFuZG9tKCktMC41KSo4LCB2eTooTWF0aC5yYW5kb20oKS0wLjUpKjgsIGxpZmU6MS4wLCBjb2xvcjpNYXRoLnJhbmRvbSgpPjAuNTsiI2YxYzQwZiI6IiNlNjdlMjIifSk7IH0KICAgIH0KCiAgICBmdW5jdGlvbiByZW5kZXJTcGFya3MoKSB7CiAgICAgICAgZm9yKGxldCBpPXNwYXJrcy5sZW5ndGgtMTtpPj0wO2ktLSl7CiAgICAgICAgICAgIGxldCBwPXNwYXJrc1tpXTsgcC54Kz1wLnZ4OyBwLnkrPXAudnk7IHAubGlmZS09MC4wNjsKICAgICAgICAgICAgaWYocC5saWZlPD0wKXsgc3BhcmtzLnNwbGljZShpLDEpOyBjb250aW51ZTsgfQogICAgICAgICAgICBjdHguZmlsbFN0eWxlPXAuY29sb3I7IGN0eC5nbG9iYWxBbHBoYT1wLmxpZmU7IGN0eC5iZWdpblBhdGgoKTsgY3R4LmFyYygucC54LHAueSwzLDAsTWF0aC5QSSpSKTsgY3R4LmZpbGwoKTsgY3R4Lmdsb2JhbEFscGhhPTEuMDsKICAgICAgICB9CiAgICB9CgogICAgZnVuY3Rpb24gZHJhd0ZyYW1lKHApIHsKICAgICAgICBjdHguY2xlYXJSZWN0KDAsMCxjYW52YXMud2lkdGgsY2FudmFzLmhlaWdodCk7CiAgICAgICAgdHJlZXMuZm9yRWFjaCh0PT5kcmF3VHJlZSgudC54LHQueSx0LnIpKTsKCiAgICAgICAgbGV0IHJvYWRDb2xvcj0iIzJjM2U1MCI7CiAgICAgICAgaWYoY2ZnLndlYXRoZXI9PT0icmFpbiIpIHJvYWRDb2xvcj0iIzEyMTkyMSI7CiAgICAgICAgaWYoY2ZnLndlYXRoZXI9PT0iaWNlIikgcm9hZENvbG9yPSIjMmIzZTUwIjsKCiAgICAgICAgY3R4LmJlZ2luUGF0aCgpOyBjdHguZWxsaXBzZShjZW50ZXJYLGNlbnRlclkscmFkaXVzWCxyYWRpdXNZLDAsLU1hdGguUEkvMiwwLGZhbHNlKTsgY3R4LmxpbmVXaWR0aD1yb2FkV2lkdGgrMTA7IGN0eC5zdHJva2VTdHlsZT0iI2MwMzkyYiI7IGN0eC5zdHJva2UoKTsKICAgICAgICBjdHguYmVnaW5QYXRoKCk7IGN0eC5lbGxpcHNlKGNlbnRlclgsY2VudGVyWSxyYWRpdXNYLHJhZGl1c1ksMCwtTWF0aC5QSS8yLDAsZmFsc2UpOyBjdHgubGluZVdpZHRoPXJvYWRXaWR0aDsgY3R4LnN0cm9rZVN0eWxlPXJvYWRDb2xvcjsgY3R4LnN0cm9rZSgpOwoKICAgICAgICBpZihjZmcud2VhdGhlcj09PSJyYWluIil7CiAgICAgICAgICAgIGN0eC5zYXZlKCk7IGN0eC5saW5lV2lkdGg9cm9hZFdpZHRoLTEyOyBjdHguc3Ryb2tlU3R5bGU9InJnYmEoMTAwLDE1MCwyMDAsMC4xOCkiOyBjdHguc2V0TGluZURhc2goWzYwLDQwLDIwLDUwXSk7CiAgICAgICAgICAgIGN0eC5iZWdpblBhdGgoKTsgY3R4LmVsbGlwc2UoY2VudGVyWCxjZW50ZXJZLHJhZGl1c1gscmFkaXVzWSwwLC1NYXRoLlBJLzIsMCxmYWxzZSk7IGN0eC5zdHJva2UoKTsKICAgICAgICAgICAgY3R4LmxpbmVXaWR0aD0xNDsgY3R4LnN0cm9rZVN0eWxlPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMjUpIjsgY3R4LnNldExpbmVEYXNoKFsxNSw4MCwzMCw2MF0pOwogICAgICAgICAgICBjdHguYmVnaW5QYXRoKCk7IGN0eC5lbGxpcHNlKGNlbnRlclgsY2VudGVyWSxyYWRpdXNYKzE4LHJhZGl1c1krMTgsMCwtTWF0aC5QSS8yLDAsZmFsc2UpOyBjdHguc3Ryb2tlKCk7IGN0eC5yZXN0b3JlKCk7CiAgICAgICAgICAgIHJhaW5SaXBwbGVzLmZvckVhY2gocnA9PnsKICAgICAgICAgICAgICAgIGN0eC5zdHJva2VTdHlsZT0icmdiYSgyMDAsMjMwLDI1NSwiKyhycC5hbHBoYSowLjUpKyIpIjsgY3R4LmxpbmVXaWR0aD0xLjU7IGN0eC5iZWdpblBhdGgoKTsgY3R4LmFyYyhycC54LHJwLnkscnAuciwwLE1hdGguUEkqMik7IGN0eC5zdHJva2UoKTsKICAgICAgICAgICAgICAgIHJwLnIrPTAuNDsgcnAuYWxwaGEtPTAuMDE1OwogICAgICAgICAgICAgICAgaWYocnAud2lkdGg8PTApe3JwLnI9MTsgcnAuYWxwaGE9MC44OyBycC54PTIwMCtNYXRoLnJhbmRvbSgpKjQ1MDsgcnAueT04MCtNYXRoLnJhbmRvbSgpKjMwMDsgfQogICAgICAgICAgICB9KTsKICAgICAgICB9IGVsc2UgaWYoY2ZnLndlYXRoZXI9PT0iaWNlIil7CiAgICAgICAgICAgIGN0eC5zYXZlKCk7IGN0eC5saW5lV2lkdGg9cm9hZFdpZHRoLTY7IGN0eC5zdHJva2VTdHlsZT0icmdiYSgyMzYsMjQwLDI0MSwwLjQyKSI7IGN0eC5zZXRMaW5lRGFzaChbMjUsMTUsOCwzMCw0MF0pOwogICAgICAgICAgICBjdHguYmVnaW5QYXRoKCk7IGN0eC5lbGxpcHNlKGNlbnRlclgsY2VudGVyWSxyYWRpdXNYLHJhZGl1c1ksMCwtTWF0aC5QSS8yLDAsZmFsc2UpOyBjdHguc3Ryb2tlKCk7CiAgICAgICAgICAgIGN0eC5saW5lV2lkdGg9MTA7IGN0eC5zdHJva2VTdHlsZT0icmdiYSgyNTUsMjU1LDI1NSwwLjY1KSI7IGN0eC5zZXRMaW5lRGFzaChbNiwzNSwxMiw1MF0pOwogICAgICAgICAgICBjdHguYmVnaW5QYXRoKCk7IGN0eC5lbGxpcHNlKGNlbnRlclgsY2VudGVyWSxyYWRpdXNYKzIyLHJhZGl1c1krMjIsMCwtTWF0aC5QSS8yLDAsZmFsc2UpOyBjdHguc3Ryb2tlKCk7CiAgICAgICAgICAgIGN0eC5iZWdpblBhdGgoKTsgY3R4LmVsbGlwc2UoY2VudGVyWCxjZW50ZXJZLHJhZGl1c1gtMjIscmFkaXVzWS0yMiwwLC1NYXRoLlBJLzIsMCxmYWxzZSk7IGN0eC5zdHJva2UoKTsgY3R4LnJlc3RvcmUoKTsKICAgICAgICB9CgogICAgICAgIGN0eC5iZWdpblBhdGgoKTsgY3R4LmVsbGlwc2UoY2VudGVyWCxjZW50ZXJZLHJhZGl1c1gscmFkaXVzWSwwLC1NYXRoLlBJLzIsMCxmYWxzZSk7IGN0eC5saW5lV2lkdGg9MzsgY3R4LnNldExpbmVEYXNoKFsxOCwxNl0pOyBjdHguc3Ryb2tlU3R5bGU9IiNmMWM0MGYiOyBjdHguc3Ryb2tlKCk7IGN0eC5zZXRMaW5lRGFzaChbXSk7CiAgICAgICAgY29uc3QgZ3VhcmRSeD1yYWRpdXNYK3JvYWRXaWR0aC8yKzQsIGd1YXJkUnk9cmFkaXVzWStyb2FkV2lkdGgvMis0OyBjdHguYmVnaW5QYXRoKCk7IGN0eC5lbGxpcHNlKGNlbnRlclgsY2VudGVyWSxndWFyZFJ4LGd1YXJkUnksMCwtTWF0aC5QSS8yLDAsZmFsc2UpOyBjdHgubGluZVdpZHRoPTY7IGN0eC5zdHJva2VTdHlsZT0iIzk1YTVhNiI7IGN0eC5zdHJva2UoKTsKICAgICAgICBmb3IobGV0IGE9LU1hdGguUEkvMjthPD0wO2ErPTAuMSl7IGxldCBweD1jZW50ZXJYK2d1YXJkUnhNYXRoLmNvcyhhKSwgcHk9Y2VudGVyWStndWFyZFJ5Kk1hdGguc2luKGEpOyBjdHguZmlsbFN0eWxlPSIjN2Y4YzhkIjsgY3R4LmZpbGxSZWN0KHB4LTMscHktMyw2LDYpOyB9CgogICAgICAgIGxldCBjYXJYLGNhclksY2FyQW5nbGUsaXNDb2xsaWRlZD1mYWxzZSxzbGlwUG9pbnQ9MC40NTsKICAgICAgICBpZihjZmcuaXNfc2FmZSB8fCBwPD1zbGlwUG9pbnQpewogICAgICAgICAgICBjb25zdCBhbmdsZT0tTWF0aC5QSS8yKyhNYXRoLlBJLzIpKnA7IGNvbnN0IHB0PWdldEVsbGlwc2VQb2ludChhbmdsZSk7IGNhclg9cHQueDsgY2FyWT1wdC55OyBjYXJBbmdsZT1wdC50YW5nZW50QW5nbGU7CiAgICAgICAgfSBlbHNlIHsKICAgICAgICAgICAgY29uc3QgYW5nbGU9LU1hdGguUEkvMisoTWF0aC5QSS8yKSpzbGlwUG9pbnQ7IGNvbnN0IHB0PWdldEVsbGlwc2VQb2ludChhbmdsZSk7CiAgICAgICAgICAgIGNvbnN0IG92ZXI9KHAtc2xpcFBvaW50KSozODA7IGxldCB0ZXN0WD1wdC54K01hdGguY29zKHB0LnRhbmdlbnRBbmdsZSkqb3ZlciwgdGVzdFk9cHQueStNYXRoLnNpbihwdC50YW5nZW50QW5nbGUpKm92ZXI7CiAgICAgICAgICAgIGxldCBub3JtRGlzdD1NYXRoLnBvdygodGVzdFgtY2VudGVyWCkvZ3VhcmRSeCwyKStNYXRoLnBvdygodGVzdFktY2VudGVyWSkvZ3VhcmRSeSwyKTsKICAgICAgICAgICAgaWYobm9ybURpc3Q+PTAuOTYpeyBpc0NvbGxpZGVkPXRydWU7IGNhclg9dGVzdFg7IGNhclk9dGVzdFk7IGNhckFuZ2xlPXB0LnRhbmdlbnRBbmdsZSswLjM1OyBjcmVhdGVTcGFya3MoY2FyWCxjYXJZKTsgfQogICAgICAgICAgICBlbHNlIHsgY2FyWD10ZXN0WDsgY2FyWT10ZXN0WTsgY2FyQW5nbGU9cHQudGFuZ2VudEFuZ2xlOyB9CiAgICAgICAgfQoKICAgICAgICBjdHguc2F2ZSgpOyBjdHgudHJhbnNsYXRlKGNhclgsY2FyWTspOyBjdHgucm90YXRlKGNhckFuZ2xlKTsgY29uc3QgY2FyVz00NiwgY2FySD0yNDsKICAgICAgICBjdHguZmlsbFN0eWxlPSIjMTExIjsgY3R4LmZpbGxSZWN0KC1jYXJXLzIrNixjYXJILzItMywxMCw0KTsgY3R4LmZpbGxSZWN0KGNhclddLzItMTYsY2FySC8yLTMsMTAsNCk7IGN0eC5maWxsUmVjdCgtY2FyVy8yKzYsY2FySC8yLTEsMTAsNCk7IGN0eC5maWxsUmVjdChjYXJXLzItMTYsY2FySC8yLTEsMTAsNCk7CiAgICAgICAgY3R4LmZpbGxTdHlsZT1pc0NvbGxpZGVkPyIjZTc0YzNjIjooY2ZnLmlzX3NhZmU/IiMyZWNjNzEiOiIjZTY3ZTIyIik7IGN0eC5iZWdpblBhdGgoKTsKICAgICAgICBpZihjdHgucm91bmRSZWN0KXtjdHgucm91bmRSZWN0KC1jYXJXLzIsLWNhckgvMixjYXJXLGNhckgsNik7fWVsc2V7Y3R4LnJlY3QoLWNhclcvMiwtY2FySC8yLGNhclcsY2FySDkpO30gY3R4LmZpbGwoKTsKICAgICAgICBjdHguZmlsbFN0eWxlPSIjMWUyNzJlIjsgY3R4LmZpbGxSZWN0KC1jYXJXLzYsLWNhckgvMiszLGNhclddLzMsY2FySC02KTsgY3R4LmZpbGxTdHlsZT0iI2YxYzQwZiI7IGN0eC5maWxsUmVjdChjYXJXLzItMiwtY2FySC8yKzMsMyw0KTsgY3R4LmZpbGxSZWN0KGNhclddLzItMixjYXJILzItNywzLDQpOyBjdHgucmVzdG9yZSgpOwoKICAgICAgICByZW5kZXJTcGFya3MoKTsgY3R4LmZvbnQ9ImJvbGQgMTZweCBzYW5zLXNlcmlmIjsKICAgICAgICBpZihpc0NvbGxpZGVkKXsgY3R4LmZpbGxTdHlsZT0iI2U3NGMzYyI7IGN0eC5maWxsVGV4dCgi8J+SpSDsmbjqsLsg6rCAdOultO2EvCDstqnrjrEg6LCY7IOdISIsIDIwLCAzNSk7IH0KICAgICAgICBlbHNlIGlmKHA+MCAmJiAhY2ZnLmlzX3NhZmUgJiYgcD5zbGlwUG9pbnQpeyBjdHguZmlsbFN0eWxlPSIjZTY3ZTIyIjsgY3R4LmZpbGxUZXh0KCLimqDvuI8g7JuQ7I2s6XvOuhnCDrj4TrgZwg7I207I6EIOyjkS4uLiIsIDIwLCAzNSk7IH0KICAgICAgICBlbHNlIGlmKHA+MCl7IGN0eC5maWxsU3R5bGU9IiMyZWNjNzEiOyBjdHguZmlsbFRleHQoIvCfpI0g6rOg73a64-EIOyEseq3uCDsub3rgI3tqLkg7K24IiwgMjAsIDM1KTsgfQogICAgICAgIGVsc2UgewogICAgICAgICAgICBjdHguZmlsbFN0eWxlPSIjZmZmIjsgY3R4LmZpbGxUZXh0KCLwn6SNIOyLnOtdqOugiOydtO2CgCDrjI3quLDsoqkg7K24IiwgMjAsIDM1KTsgfQogICAgfQoKICAgIGZ1bmN0aW9uIHN0ZXAoKXsKICAgICAgICBpZighaXNSdW5uaW5nKSByZXR1cm47CiAgICAgICAgY29uc3Qgc3BlZWQ9MC4wMDMrKGNmZy51c2VyX3NwZWVkLzE1MCkqMC4wMDc7IHByb2dyZXNzKz1zcGVlZDsKICAgICAgICBpZihwcm9ncmVzcz4xLjI1KXsgcHJvZ3Jlc3M9MS4yNTsgZHJhd0ZyYW1lKHByb2dyZXNzKTsgaXNSdW5uaW5nPWZhbHNlOyByZXR1cm47IH0KICAgICAgICBkcmF3RnJhbWUocHJvZ3Jlc3MpOyBhbmltSWQ9cmVxdWVzdEFuaW1hdGlvbkZyYW1lKHN0ZXApOwogICAgfQoKICAgIHN0YXJ0QnRuLmFkZEV2ZW50TGlzdGVuZXIoImNsaWNrIiwgZnVuY3Rpb24oKXsgaWYoYW5pbUlkKSBjYW5jZWxBbmltYXRpb25GcmFtZShhbmltSWQpOyBzcGFya3M9W107IHByb2dyZXNzPTA7IGlzUnVubmluZz10cnVlOyBzdGVwKCk7IH0pOwogICAgZHJhd0ZyYW1lKDApOwohfSkoKTsKPC9zY3JpcHQ+CjwvYm9keT4KPC9odG1sPg=="
+# 파이썬 f-string과 HTML/JS 간 특수문자 충돌을 원천 차단하는 표준 주입 방식
+json_data = html.escape(json.dumps(sim_params))
 
-# Base64 디코딩 후 파라미터 안전 결합
-html_code = base64.b64decode(b64_html_template).decode('utf-8')
-rendered_html = html_code.replace("__CFG_JSON__", json.dumps(sim_params))
+html_template = """
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+        background-color: #0e1117;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        color: #ffffff;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding-top: 10px;
+    }
+    .btn-container { margin-bottom: 12px; }
+    .start-btn {
+        background: linear-gradient(135deg, #ff4b4b, #d32f2f);
+        color: #ffffff;
+        border: none;
+        padding: 12px 32px;
+        font-size: 17px;
+        font-weight: 700;
+        border-radius: 8px;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(255, 75, 75, 0.4);
+        transition: all 0.2s ease;
+    }
+    .start-btn:hover { transform: translateY(-2px); }
+    #simCanvas {
+        background: #141c15;
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    }
+</style>
+</head>
+<body>
 
+<div class="btn-container">
+    <button class="start-btn" id="startBtn">▶️ 고속도로 주행 시뮬레이션 시작</button>
+</div>
+<canvas id="simCanvas" width="820" height="480"></canvas>
+
+<div id="cfgData" data-json="CONFIG_JSON_PLACEHOLDER" style="display:none;"></div>
+
+<script>
+(function() {
+    const rawData = document.getElementById("cfgData").getAttribute("data-json");
+    const cfg = JSON.parse(rawData.replace(/&quot;/g, '"'));
+
+    const canvas = document.getElementById("simCanvas");
+    const ctx = canvas.getContext("2d");
+    const startBtn = document.getElementById("startBtn");
+
+    let animId = null;
+    let progress = 0;
+    let isRunning = false;
+    let sparks = [];
+    let rainRipples = [];
+
+    const minR = 20, maxR = 200;
+    const normR = (cfg.radius - minR) / (maxR - minR);
+
+    const radiusX = 220 + normR * 320;
+    const radiusY = 380 - normR * 40;
+    
+    const centerX = 40 - normR * 80;
+    const centerY = 450 + normR * 60;
+    const roadWidth = 85;
+
+    const trees = [
+        { x: 520, y: 70, r: 24 },
+        { x: 630, y: 150, r: 28 },
+        { x: 680, y: 270, r: 26 },
+        { x: 650, y: 390, r: 30 },
+        { x: 90, y: 60, r: 20 }
+    ];
+
+    for(let i=0; i<12; i++) {
+        rainRipples.push({
+            x: 200 + Math.random() * 450,
+            y: 80 + Math.random() * 300,
+            r: Math.random() * 8,
+            alpha: Math.random()
+        });
+    }
+
+    function getEllipsePoint(angle) {
+        const x = centerX + radiusX * Math.cos(angle);
+        const y = centerY + radiusY * Math.sin(angle);
+        const dx = -radiusX * Math.sin(angle);
+        const dy = radiusY * Math.cos(angle);
+        const tangentAngle = Math.atan2(dy, dx);
+        return { x, y, dx, dy, tangentAngle };
+    }
+
+    function drawTree(x, y, r) {
+        ctx.fillStyle = "rgba(0,0,0,0.25)";
+        ctx.beginPath();
+        ctx.ellipse(x + 4, y + 4, r, r * 0.7, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = cfg.weather === "ice" ? "#234033" : "#214e21";
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = cfg.weather === "ice" ? "#386350" : "#2e682e";
+        ctx.beginPath();
+        ctx.arc(x - r*0.2, y - r*0.2, r * 0.65, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    function createSparks(x, y) {
+        for (let i = 0; i < 6; i++) {
+            sparks.push({
+                x: x, y: y,
+                vx: (Math.random() - 0.5) * 8,
+                vy: (Math.random() - 0.5) * 8,
+                life: 1.0,
+                color: Math.random() > 0.5 ? "#f1c40f" : "#e67e22"
+            });
+        }
+    }
+
+    function renderSparks() {
+        for (let i = sparks.length - 1; i >= 0; i--) {
+            let p = sparks[i];
+            p.x += p.vx;
+            p.y += p.vy;
+            p.life -= 0.06;
+
+            if (p.life <= 0) {
+                sparks.splice(i, 1);
+                continue;
+            }
+
+            ctx.fillStyle = p.color;
+            ctx.globalAlpha = p.life;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+        }
+    }
+
+    function drawFrame(p) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        trees.forEach(t => drawTree(t.x, t.y, t.r));
+
+        let roadColor = "#2c3e50";
+        if (cfg.weather === "rain") roadColor = "#121921";
+        if (cfg.weather === "ice") roadColor = "#2b3e50";
+
+        ctx.beginPath();
+        ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, -Math.PI / 2, 0, false);
+        ctx.lineWidth = roadWidth + 10;
+        ctx.strokeStyle = "#c0392b";
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, -Math.PI / 2, 0, false);
+        ctx.lineWidth = roadWidth;
+        ctx.strokeStyle = roadColor;
+        ctx.stroke();
+
+        if (cfg.weather === "rain") {
+            ctx.save();
+            ctx.lineWidth = roadWidth - 12;
+            ctx.strokeStyle = "rgba(100, 150, 200, 0.18)";
+            ctx.setLineDash([60, 40, 20, 50]);
+            ctx.beginPath();
+            ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, -Math.PI / 2, 0, false);
+            ctx.stroke();
+
+            ctx.lineWidth = 14;
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
+            ctx.setLineDash([15, 80, 30, 60]);
+            ctx.beginPath();
+            ctx.ellipse(centerX, centerY, radiusX + 18, radiusY + 18, 0, -Math.PI / 2, 0, false);
+            ctx.stroke();
+            ctx.restore();
+
+            rainRipples.forEach(rp => {
+                ctx.strokeStyle = "rgba(200, 230, 255, " + (rp.alpha * 0.5) + ")";
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.arc(rp.x, rp.y, rp.r, 0, Math.PI * 2);
+                ctx.stroke();
+
+                rp.r += 0.4;
+                rp.alpha -= 0.015;
+                if (rp.alpha <= 0) {
+                    rp.r = 1;
+                    rp.alpha = 0.8;
+                    rp.x = 200 + Math.random() * 450;
+                    rp.y = 80 + Math.random() * 300;
+                }
+            });
+
+        } else if (cfg.weather === "ice") {
+            ctx.save();
+            ctx.lineWidth = roadWidth - 6;
+            ctx.strokeStyle = "rgba(236, 240, 241, 0.42)";
+            ctx.setLineDash([25, 15, 8, 30, 40]);
+            ctx.beginPath();
+            ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, -Math.PI / 2, 0, false);
+            ctx.stroke();
+
+            ctx.lineWidth = 10;
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.65)";
+            ctx.setLineDash([6, 35, 12, 50]);
+            ctx.beginPath();
+            ctx.ellipse(centerX, centerY, radiusX + 22, radiusY + 22, 0, -Math.PI / 2, 0, false);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.ellipse(centerX, centerY, radiusX - 22, radiusY - 22, 0, -Math.PI / 2, 0, false);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        ctx.beginPath();
+        ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, -Math.PI / 2, 0, false);
+        ctx.lineWidth = 3;
+        ctx.setLineDash([18, 16]);
+        ctx.strokeStyle = "#f1c40f";
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const guardRx = radiusX + roadWidth / 2 + 4;
+        const guardRy = radiusY + roadWidth / 2 + 4;
+        ctx.beginPath();
+        ctx.ellipse(centerX, centerY, guardRx, guardRy, 0, -Math.PI / 2, 0, false);
+        ctx.lineWidth = 6;
+        ctx.strokeStyle = "#95a5a6";
+        ctx.stroke();
+
+        for (let a = -Math.PI / 2; a <= 0; a += 0.1) {
+            let px = centerX + guardRx * Math.cos(a);
+            let py = centerY + guardRy * Math.sin(a);
+            ctx.fillStyle = "#7f8c8d";
+            ctx.fillRect(px - 3, py - 3, 6, 6);
+        }
+
+        let carX, carY, carAngle;
+        let isCollided = false;
+        const slipPoint = 0.45;
+
+        if (cfg.is_safe || p <= slipPoint) {
+            const angle = -Math.PI / 2 + (Math.PI / 2) * p;
+            const pt = getEllipsePoint(angle);
+            carX = pt.x;
+            carY = pt.y;
+            carAngle = pt.tangentAngle;
+        } else {
+            const angle = -Math.PI / 2 + (Math.PI / 2) * slipPoint;
+            const pt = getEllipsePoint(angle);
+
+            const over = (p - slipPoint) * 380;
+            let testX = pt.x + Math.cos(pt.tangentAngle) * over;
+            let testY = pt.y + Math.sin(pt.tangentAngle) * over;
+
+            let normDist = Math.pow((testX - centerX) / guardRx, 2) + Math.pow((testY - centerY) / guardRy, 2);
+            if (normDist >= 0.96) {
+                isCollided = true;
+                carX = testX;
+                carY = testY;
+                carAngle = pt.tangentAngle + 0.35;
+                createSparks(carX, carY);
+            } else {
+                carX = testX;
+                carY = testY;
+                carAngle = pt.tangentAngle;
+            }
+        }
+
+        ctx.save();
+        ctx.translate(carX, carY);
+        ctx.rotate(carAngle);
+
+        const carW = 46, carH = 24;
+        ctx.fillStyle = "#111";
+        ctx.fillRect(-carW/2 + 6, -carH/2 - 3, 10, 4);
+        ctx.fillRect(carW/2 - 16, -carH/2 - 3, 10, 4);
+        ctx.fillRect(-carW/2 + 6, carH/2 - 1, 10, 4);
+        ctx.fillRect(carW/2 - 16, carH/2 - 1, 10, 4);
+
+        ctx.fillStyle = isCollided ? "#e74c3c" : (cfg.is_safe ? "#2ecc71" : "#e67e22");
+        ctx.beginPath();
+        if (ctx.roundRect) {
+            ctx.roundRect(-carW/2, -carH/2, carW, carH, 6);
+        } else {
+            ctx.rect(-carW/2, -carH/2, carW, carH);
+        }
+        ctx.fill();
+
+        ctx.fillStyle = "#1e272e";
+        ctx.fillRect(-carW/6, -carH/2 + 3, carW/3, carH - 6);
+
+        ctx.fillStyle = "#f1c40f";
+        ctx.fillRect(carW/2 - 2, -carH/2 + 3, 3, 4);
+        ctx.fillRect(carW/2 - 2, carH/2 - 7, 3, 4);
+
+        ctx.restore();
+
+        renderSparks();
+
+        ctx.font = "bold 16px 'Segoe UI', sans-serif";
+        if (isCollided) {
+            ctx.fillStyle = "#e74c3c";
+            ctx.fillText("💥 외곽 가드레일 충돌 발생!", 20, 35);
+        } else if (p > 0 && !cfg.is_safe && p > slipPoint) {
+            ctx.fillStyle = "#e67e22";
+            ctx.fillText("⚠️ 원심력으로 도로 이탈 중...", 20, 35);
+        } else if (p > 0) {
+            ctx.fillStyle = "#2ecc71";
+            ctx.fillText("🏎️ 고속도로 코너링 중", 20, 35);
+        } else {
+            ctx.fillStyle = "#ffffff";
+            ctx.fillText("🏎️ 시뮬레이션 대기 중", 20, 35);
+        }
+    }
+
+    function step() {
+        if (!isRunning) return;
+        
+        const speed = 0.003 + (cfg.user_speed / 150) * 0.007;
+        progress += speed;
+
+        if (progress > 1.25) {
+            progress = 1.25;
+            drawFrame(progress);
+            isRunning = false;
+            return;
+        }
+
+        drawFrame(progress);
+        animId = requestAnimationFrame(step);
+    }
+
+    startBtn.addEventListener("click", function() {
+        if (animId) cancelAnimationFrame(animId);
+        sparks = [];
+        progress = 0;
+        isRunning = true;
+        step();
+    });
+
+    drawFrame(0);
+})();
+</script>
+</body>
+</html>
+"""
+
+rendered_html = html_template.replace("CONFIG_JSON_PLACEHOLDER", json_data)
 components.html(rendered_html, height=540)
 
 st.markdown("---")
