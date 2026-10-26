@@ -88,7 +88,7 @@ else:
 st.markdown("---")
 
 # =============================================================================
-# 4. HTML5 Canvas 고속도로 곡률 & 실사급 노면 텍스처 시뮬레이션
+# 4. HTML5 Canvas 시뮬레이션 (f-string 파싱 문제 차단용 replace 방식 사용)
 # =============================================================================
 st.subheader("🎬 2D 고속도로 커브길 주행 시뮬레이션")
 
@@ -100,14 +100,14 @@ sim_params = {
     "weather": weather_type
 }
 
-canvas_code = f"""
+raw_html = """
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
 <style>
-    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-    body {{
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
         background-color: #0e1117;
         font-family: 'Segoe UI', system-ui, sans-serif;
         color: #ffffff;
@@ -115,9 +115,33 @@ canvas_code = f"""
         flex-direction: column;
         align-items: center;
         padding-top: 10px;
-    }}
-    .btn-container {{
+    }
+    .btn-container {
         margin-bottom: 12px;
-    }}
-    .start-btn {{
-        background: linear-gradient(135deg, #ff4b4
+    }
+    .start-btn {
+        background: linear-gradient(135deg, #ff4b4b, #d32f2f);
+        color: #ffffff;
+        border: none;
+        padding: 12px 32px;
+        font-size: 17px;
+        font-weight: 700;
+        border-radius: 8px;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(255, 75, 75, 0.4);
+        transition: all 0.2s ease;
+    }
+    .start-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(255, 75, 75, 0.6);
+    }
+    #simCanvas {
+        background: #141c15;
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    }
+</style>
+</head>
+<body>
+
+<div class="btn-container">
