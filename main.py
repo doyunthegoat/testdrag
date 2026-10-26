@@ -88,7 +88,7 @@ else:
 st.markdown("---")
 
 # =============================================================================
-# 4. HTML5 Canvas 동적 시뮬레이션 (버튼 및 애니메이션 완전 정상화)
+# 4. HTML5 Canvas 타원형 곡률 변형 시뮬레이션
 # =============================================================================
 st.subheader("🎬 2D 커브길 주행 시뮬레이션")
 
@@ -135,9 +135,6 @@ canvas_code = f"""
         transform: translateY(-2px);
         box-shadow: 0 6px 16px rgba(255, 75, 75, 0.6);
     }}
-    .start-btn:active {{
-        transform: translateY(0);
-    }}
     #simCanvas {{
         background: #19231a;
         border-radius: 12px;
@@ -164,12 +161,17 @@ canvas_code = f"""
     let isRunning = false;
     let sparks = [];
 
-    // 곡선 반경(r)에 대응하는 동적 트랙 계산
+    // [핵심] 곡선 반경 r에 따른 타원형 장축(Rx) / 단축(Ry) 곡률 계산
     const minR = 20, maxR = 200;
-    const normR = (cfg.radius - minR) / (maxR - minR);
-    const trackR = 130 + normR * 280;
-    const centerX = 80 - normR * 120;
-    const centerY = 430 + normR * 140;
+    const normR = (cfg.radius - minR) / (maxR - minR); // 0.0(급) ~ 1.0(완만)
+
+    // 급커브(r=20): Rx=120, Ry=320 (타원 형태의 좁고 급한 코너)
+    // 완만커브(r=200): Rx=380, Ry=280 (부드럽게 돌아나가는 코너)
+    const radiusX = 120 + normR * 260;
+    const radiusY = 340 - normR * 60;
+    
+    const centerX = 80;
+    const centerY = 420;
     const roadWidth = 75;
 
     const trees = [
@@ -179,6 +181,17 @@ canvas_code = f"""
         {{ x: 590, y: 380, r: 30 }},
         {{ x: 80, y: 60, r: 20 }}
     ];
+
+    // 타원 상의 위치 (x, y) 및 진입 방향 접선 각도 계산
+    function getEllipsePoint(angle) {{
+        const x = centerX + radiusX * Math.cos(angle);
+        const y = centerY + radiusY * Math.sin(angle);
+        // 타원의 접선 각도: dx/dθ = -Rx*sinθ, dy/dθ = Ry*cosθ
+        const dx = -radiusX * Math.sin(angle);
+        const dy = radiusY * Math.cos(angle);
+        const tangentAngle = Math.atan2(dy, dx);
+        return {{ x, y, dx, dy, tangentAngle }};
+    }}
 
     function drawTree(x, y, r) {{
         ctx.fillStyle = "rgba(0,0,0,0.25)";
@@ -236,19 +249,21 @@ canvas_code = f"""
         // 1. 배경 나무
         trees.forEach(t => drawTree(t.x, t.y, t.r));
 
-        // 2. 도로
+        // 2. 타원 아스팔트 도로
         let roadColor = "#2c3e50";
         if (cfg.weather === "rain") roadColor = "#1a252f";
         if (cfg.weather === "ice") roadColor = "#34495e";
 
+        // 경계석 (Curb)
         ctx.beginPath();
-        ctx.arc(centerX, centerY, trackR, -Math.PI / 2, 0, false);
+        ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, -Math.PI / 2, 0, false);
         ctx.lineWidth = roadWidth + 8;
         ctx.strokeStyle = "#e74c3c";
         ctx.stroke();
 
+        // 아스팔트
         ctx.beginPath();
-        ctx.arc(centerX, centerY, trackR, -Math.PI / 2, 0, false);
+        ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, -Math.PI / 2, 0, false);
         ctx.lineWidth = roadWidth;
         ctx.strokeStyle = roadColor;
         ctx.stroke();
@@ -260,7 +275,7 @@ canvas_code = f"""
             ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
             ctx.setLineDash([30, 40]);
             ctx.beginPath();
-            ctx.arc(centerX, centerY, trackR, -Math.PI / 2, 0, false);
+            ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, -Math.PI / 2, 0, false);
             ctx.stroke();
             ctx.restore();
         }} else if (cfg.weather === "ice") {{
@@ -269,34 +284,35 @@ canvas_code = f"""
             ctx.strokeStyle = "rgba(236, 240, 241, 0.35)";
             ctx.setLineDash([15, 20]);
             ctx.beginPath();
-            ctx.arc(centerX, centerY, trackR + 10, -Math.PI / 2, 0, false);
+            ctx.ellipse(centerX, centerY, radiusX + 10, radiusY + 10, 0, -Math.PI / 2, 0, false);
             ctx.stroke();
             ctx.beginPath();
-            ctx.arc(centerX, centerY, trackR - 10, -Math.PI / 2, 0, false);
+            ctx.ellipse(centerX, centerY, radiusX - 10, radiusY - 10, 0, -Math.PI / 2, 0, false);
             ctx.stroke();
             ctx.restore();
         }}
 
-        // 4. 중앙선
+        // 4. 중앙선 (황색 점선)
         ctx.beginPath();
-        ctx.arc(centerX, centerY, trackR, -Math.PI / 2, 0, false);
+        ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, -Math.PI / 2, 0, false);
         ctx.lineWidth = 3;
         ctx.setLineDash([14, 12]);
         ctx.strokeStyle = "#f1c40f";
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // 5. 가드레일
-        const guardR = trackR + roadWidth / 2 + 3;
+        // 5. 외곽 가드레일 (타원)
+        const guardRx = radiusX + roadWidth / 2 + 3;
+        const guardRy = radiusY + roadWidth / 2 + 3;
         ctx.beginPath();
-        ctx.arc(centerX, centerY, guardR, -Math.PI / 2, 0, false);
+        ctx.ellipse(centerX, centerY, guardRx, guardRy, 0, -Math.PI / 2, 0, false);
         ctx.lineWidth = 5;
         ctx.strokeStyle = "#bdc3c7";
         ctx.stroke();
 
         for (let a = -Math.PI / 2; a <= 0; a += 0.12) {{
-            let px = centerX + guardR * Math.cos(a);
-            let py = centerY + guardR * Math.sin(a);
+            let px = centerX + guardRx * Math.cos(a);
+            let py = centerY + guardRy * Math.sin(a);
             ctx.fillStyle = "#7f8c8d";
             ctx.fillRect(px - 2, py - 2, 5, 5);
         }}
@@ -305,35 +321,33 @@ canvas_code = f"""
         let carX, carY, carAngle;
         let isCollided = false;
         const slipPoint = 0.45;
-        const guardCrashR = trackR + roadWidth / 2 - 10;
 
         if (cfg.is_safe || p <= slipPoint) {{
             const angle = -Math.PI / 2 + (Math.PI / 2) * p;
-            carX = centerX + trackR * Math.cos(angle);
-            carY = centerY + trackR * Math.sin(angle);
-            carAngle = angle + Math.PI / 2;
+            const pt = getEllipsePoint(angle);
+            carX = pt.x;
+            carY = pt.y;
+            carAngle = pt.tangentAngle;
         }} else {{
             const angle = -Math.PI / 2 + (Math.PI / 2) * slipPoint;
-            const startX = centerX + trackR * Math.cos(angle);
-            const startY = centerY + trackR * Math.sin(angle);
-            const tangentAngle = angle + Math.PI / 2;
+            const pt = getEllipsePoint(angle);
 
             const over = (p - slipPoint) * 360;
-            let testX = startX + Math.cos(tangentAngle) * over;
-            let testY = startY + Math.sin(tangentAngle) * over;
+            let testX = pt.x + Math.cos(pt.tangentAngle) * over;
+            let testY = pt.y + Math.sin(pt.tangentAngle) * over;
 
-            let dist = Math.hypot(testX - centerX, testY - centerY);
-            if (dist >= guardCrashR) {{
+            // 가드레일 외곽 검사
+            let normDist = Math.pow((testX - centerX) / guardRx, 2) + Math.pow((testY - centerY) / guardRy, 2);
+            if (normDist >= 0.96) {{
                 isCollided = true;
-                let crashAngle = Math.atan2(testY - centerY, testX - centerX);
-                carX = centerX + guardCrashR * Math.cos(crashAngle);
-                carY = centerY + guardCrashR * Math.sin(crashAngle);
-                carAngle = tangentAngle + 0.3;
+                carX = testX;
+                carY = testY;
+                carAngle = pt.tangentAngle + 0.35;
                 createSparks(carX, carY);
             }} else {{
                 carX = testX;
                 carY = testY;
-                carAngle = tangentAngle;
+                carAngle = pt.tangentAngle;
             }}
         }}
 
@@ -369,7 +383,7 @@ canvas_code = f"""
 
         renderSparks();
 
-        // 8. 상태 안내 문구
+        // 8. 상태 문구
         ctx.font = "bold 16px 'Segoe UI', sans-serif";
         if (isCollided) {{
             ctx.fillStyle = "#e74c3c";
@@ -411,7 +425,6 @@ canvas_code = f"""
         step();
     }});
 
-    // 초기 1회 정지 상태 렌더링
     drawFrame(0);
 }})();
 </script>
