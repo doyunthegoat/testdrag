@@ -89,7 +89,7 @@ else:
 st.markdown("---")
 
 # =============================================================================
-# 4. HTML5 Canvas 시뮬레이션 (파싱 오류 완전 방지 구조)
+# 4. HTML5 Canvas 시뮬레이션 (인코딩 처리로 파싱 오류 완전 차단)
 # =============================================================================
 st.subheader("🎬 2D 고속도로 커브길 주행 시뮬레이션")
 
@@ -101,28 +101,10 @@ sim_params = {
     "weather": weather_type
 }
 
-# 안전한 인코딩 방식의 HTML 템플릿
-html_parts = [
-    '<!DOCTYPE html><html><head><meta charset="utf-8"><style>',
-    '* { box-sizing: border-box; margin: 0; padding: 0; }',
-    'body { background-color: #0e1117; font-family: sans-serif; color: #fff; display: flex; flex-direction: column; align-items: center; padding-top: 10px; }',
-    '.btn-container { margin-bottom: 12px; }',
-    '.start-btn { background: linear-gradient(135deg, #ff4b4b, #d32f2f); color: #fff; border: none; padding: 12px 32px; font-size: 17px; font-weight: 700; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 12px rgba(255, 75, 75, 0.4); }',
-    '.start-btn:hover { transform: translateY(-2px); }',
-    '#simCanvas { background: #141c15; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.6); }',
-    '</style></head><body>',
-    '<div class="btn-container"><button class="start-btn" id="startBtn">▶️ 고속도로 주행 시뮬레이션 시작</button></div>',
-    '<canvas id="simCanvas" width="820" height="480"></canvas>',
-    '<script>',
-    'const cfg = ' + json.dumps(sim_params) + ';',
-    'const canvas = document.getElementById("simCanvas");',
-    'const ctx = canvas.getContext("2d");',
-    'const startBtn = document.getElementById("startBtn");',
-    'let animId = null, progress = 0, isRunning = false, sparks = [], rainRipples = [];',
-    'const minR = 20, maxR = 200, normR = (cfg.radius - minR) / (maxR - minR);',
-    'const radiusX = 220 + normR * 320, radiusY = 380 - normR * 40;',
-    'const centerX = 40 - normR * 80, centerY = 450 + normR * 60, roadWidth = 85;',
-    'const trees = [{x:520,y:70,r:24},{x:630,y:150,r:28},{x:680,y:270,r:26},{x:650,y:390,r:30},{x:90,y:60,r:20}];',
-    'for(let i=0;i<12;i++){ rainRipples.push({x:200+Math.random()*450, y:80+Math.random()*300, r:Math.random()*8, alpha:Math.random()}); }',
-    'function getEllipsePoint(angle) { const x = centerX + radiusX * Math.cos(angle); const y = centerY + radiusY * Math.sin(angle); const dx = -radiusX * Math.sin(angle); const dy = radiusY * Math.cos(angle); return { x, y, dx, dy, tangentAngle: Math.atan2(dy, dx) }; }',
-    'function drawTree(x, y, r) { ctx.fillStyle = "rgba(0,0,0,0.25)"; ctx.beginPath(); ctx.ellipse(x+4, y+4, r, r*0.
+# HTML/JS 코드 전문을 원형 그대로 압축
+html_template = """<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+    * { box-sizing: border-box
