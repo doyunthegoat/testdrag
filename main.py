@@ -79,17 +79,16 @@ if is_safe:
     col3.metric("주행 상태", "✅ 안전 코너링", f"{abs(speed_diff):.1f} km/h 여유", delta_color="normal")
     st.success(f"**[안전]** 진입 속도({user_speed_kmh} km/h)가 한계 속도({v_max_kmh:.1f} km/h) 이하입니다. 자동차가 도로를 벗어나지 않고 안전하게 회전합니다.")
 else:
-    col3.metric("주행 상태", "⚠️ 도로 이탈 (슬립)", f"{speed_diff:.1f} km/h 초과", delta_color="inverse")
-    st.error(f"**[위험]** 진입 속도({user_speed_kmh} km/h)가 한계 속도({v_max_kmh:.1f} km/h)를 초과했습니다! 원심력이 마찰력보다 커서 차량이 바깥으로 튕겨 나갑니다.")
+    col3.metric("주행 상태", "⚠️ 도로 이탈 (충돌)", f"{speed_diff:.1f} km/h 초과", delta_color="inverse")
+    st.error(f"**[위험]** 진입 속도({user_speed_kmh} km/h)가 한계 속도({v_max_kmh:.1f} km/h)를 초과했습니다! 원심력에 의해 외곽 가드레일과 충돌합니다.")
 
 st.markdown("---")
 
 # =============================================================================
-# 4. HTML5 Canvas 기반 60FPS 자동차 매끄러운 2D 애니메이션 Component
+# 4. HTML5 Canvas 기반 가드레일/나무/충돌 스파크 애니메이션 Component
 # =============================================================================
 st.subheader("🎬 2D 커브길 주행 시뮬레이션")
 
-# JS 전달용 데이터 팩
 sim_params = {
     "is_safe": bool(is_safe),
     "radius": int(radius),
@@ -132,9 +131,9 @@ canvas_html = f"""
         background-color: #d33838;
     }}
     canvas {{
-        background: #1e222b;
+        background: #19231a; /* 주변 잔디밭 색상 */
         border-radius: 12px;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.4);
     }}
 </style>
 </head>
@@ -143,7 +142,7 @@ canvas_html = f"""
 <div id="controls">
     <button class="btn" onclick="startSimulation()">▶️ 시뮬레이션 시작</button>
 </div>
-<canvas id="simCanvas" width="800" height="420"></canvas>
+<canvas id="simCanvas" width="800" height="450"></canvas>
 
 <script>
 const config = {json.dumps(sim_params)};
@@ -153,101 +152,213 @@ const ctx = canvas.getContext("2d");
 let animId = null;
 let progress = 0;
 let isAnimating = false;
+let sparks = [];
 
-// 트랙 매개변수 설정
-const centerX = 150;
-const centerY = 370;
-const trackR = 240; // 화면 맞춤형 고정 반지름 비율
+// 트랙 매개변수
+const centerX = 120;
+const centerY = 400;
+const trackR = 250;
+const roadWidth = 70;
+
+// 고정 나무 위치 배열
+const trees = [
+    {{ x: 420, y: 80, r: 22 }},
+    {{ x: 490, y: 150, r: 26 }},
+    {{ x: 530, y: 240, r: 24 }},
+    {{ x: 520, y: 340, r: 28 }},
+    {{ x: 70, y: 80, r: 20 }},
+    {{ x: 280, y: 300, r: 18 }}
+];
+
+// 나무 그리기
+function drawTree(x, y, r) {{
+    // 그림자
+    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.beginPath();
+    ctx.ellipse(x + 5, y + 5, r, r * 0.7, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 나뭇잎
+    ctx.fillStyle = "#2d5a27";
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#3a7233";
+    ctx.beginPath();
+    ctx.arc(x - r*0.2, y - r*0.2, r * 0.65, 0, Math.PI * 2);
+    ctx.fill();
+}}
+
+// 스파크 이펙트 관리
+function createSparks(x, y) {{
+    for (let i = 0; i < 8; i++) {{
+        sparks.push({{
+            x: x,
+            y: y,
+            vx: (Math.random() - 0.5) * 8,
+            vy: (Math.random() - 0.5) * 8,
+            life: 1.0,
+            color: Math.random() > 0.5 ? "#f1c40f" : "#e67e22"
+        }});
+    }}
+}}
+
+function updateAndDrawSparks() {{
+    for (let i = sparks.length - 1; i >= 0; i--) {{
+        let p = sparks[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= 0.05;
+
+        if (p.life <= 0) {{
+            sparks.splice(i, 1);
+            continue;
+        }}
+
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.life;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+    }}
+}}
 
 function drawScene(carProgress) {{
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 1. 아스팔트 커브 도로 그리기
+    // 1. 잔디밭 및 나무 렌더링
+    trees.forEach(t => drawTree(t.x, t.y, t.r));
+
+    // 2. 아스팔트 갓길 및 도로 베이스
     ctx.beginPath();
     ctx.arc(centerX, centerY, trackR, -Math.PI / 2, 0, false);
-    ctx.lineWidth = 60;
-    ctx.strokeStyle = "#343a40";
+    ctx.lineWidth = roadWidth + 8;
+    ctx.strokeStyle = "#e74c3c"; // 경계석 (빨강/흰색 번갈아 표시는 외곽선으로 대체)
     ctx.stroke();
 
-    // 2. 도로 중앙선 (황색 점선)
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, trackR, -Math.PI / 2, 0, false);
+    ctx.lineWidth = roadWidth;
+    ctx.strokeStyle = "#2c3e50"; // 메인 아스팔트
+    ctx.stroke();
+
+    // 3. 도로 중앙선 (황색 점선)
     ctx.beginPath();
     ctx.arc(centerX, centerY, trackR, -Math.PI / 2, 0, false);
     ctx.lineWidth = 3;
-    ctx.setLineDash([12, 10]);
+    ctx.setLineDash([14, 12]);
     ctx.strokeStyle = "#f1c40f";
     ctx.stroke();
-    ctx.setLineDash([]); // 원복
+    ctx.setLineDash([]);
 
-    // 3. 자동차 위치 및 회전 각도 수치 계산
+    // 4. 외곽 가드레일 (외곽 곡선)
+    const guardR = trackR + roadWidth / 2 + 3;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, guardR, -Math.PI / 2, 0, false);
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = "#bdc3c7"; // 금속 가드레일
+    ctx.stroke();
+
+    // 가드레일 지지대 기둥
+    for (let a = -Math.PI / 2; a <= 0; a += 0.15) {{
+        let px = centerX + guardR * Math.cos(a);
+        let py = centerY + guardR * Math.sin(a);
+        ctx.fillStyle = "#7f8c8d";
+        ctx.fillRect(px - 2, py - 2, 5, 5);
+    }}
+
+    // 5. 자동차 위치 및 물리 상태 계산
     let carX, carY, carAngle;
-    let isSlipped = false;
-    const slipPoint = 0.5; // 커브 중간 지점에서 슬립 발생
+    let isCollided = false;
+    const slipPoint = 0.45;
+    const guardCrashR = trackR + roadWidth / 2 - 10; // 가드레일 충돌 지점
 
     if (config.is_safe || carProgress <= slipPoint) {{
-        // 정상 궤적 (원형 가속)
+        // 정상 코너링
         const angle = -Math.PI / 2 + (Math.PI / 2) * carProgress;
         carX = centerX + trackR * Math.cos(angle);
         carY = centerY + trackR * Math.sin(angle);
-        carAngle = angle + Math.PI / 2; // 진행 방향 접선 각도
+        carAngle = angle + Math.PI / 2;
     }} else {{
-        // 원심력 이탈 궤적 (접선 직선 진행)
-        isSlipped = true;
+        // 이탈 진행
         const angle = -Math.PI / 2 + (Math.PI / 2) * slipPoint;
         const startX = centerX + trackR * Math.cos(angle);
         const startY = centerY + trackR * Math.sin(angle);
         const tangentAngle = angle + Math.PI / 2;
 
-        const over = (carProgress - slipPoint) * 350;
-        carX = startX + Math.cos(tangentAngle) * over;
-        carY = startY + Math.sin(tangentAngle) * over;
-        carAngle = tangentAngle;
+        const over = (carProgress - slipPoint) * 320;
+        let testX = startX + Math.cos(tangentAngle) * over;
+        let testY = startY + Math.sin(tangentAngle) * over;
+
+        // 가드레일 충돌 검사 (중심으로부터의 거리)
+        let dist = Math.hypot(testX - centerX, testY - centerY);
+        if (dist >= guardCrashR) {{
+            isCollided = true;
+            // 충돌 지점에 고정
+            let crashAngle = Math.atan2(testY - centerY, testX - centerX);
+            carX = centerX + guardCrashR * Math.cos(crashAngle);
+            carY = centerY + guardCrashR * Math.sin(crashAngle);
+            carAngle = tangentAngle + 0.3; // 충돌로 차체가 살짝 돌아감
+            createSparks(carX, carY);
+        }} else {{
+            carX = testX;
+            carY = testY;
+            carAngle = tangentAngle;
+        }}
     }}
 
-    // 4. 자동차 그래픽 랜더링 (차량 형상 직접 그리기)
+    // 6. 자동차 그리기
     ctx.save();
     ctx.translate(carX, carY);
     ctx.rotate(carAngle);
 
-    // 차체 그리기 (세단 스타일)
-    const carWidth = 42;
+    const carWidth = 44;
     const carHeight = 22;
 
-    // 바퀴 4개
+    // 타이어
     ctx.fillStyle = "#111";
     ctx.fillRect(-carWidth/2 + 6, -carHeight/2 - 3, 10, 4);
     ctx.fillRect(carWidth/2 - 16, -carHeight/2 - 3, 10, 4);
     ctx.fillRect(-carWidth/2 + 6, carHeight/2 - 1, 10, 4);
     ctx.fillRect(carWidth/2 - 16, carHeight/2 - 1, 10, 4);
 
-    // 차체 보디 (안전: 초록/파랑, 슬립: 빨강)
-    ctx.fillStyle = isSlipped ? "#e74c3c" : "#2ecc71";
+    // 차체
+    ctx.fillStyle = isCollided ? "#e74c3c" : (config.is_safe ? "#2ecc71" : "#e67e22");
     ctx.beginPath();
     ctx.roundRect(-carWidth/2, -carHeight/2, carWidth, carHeight, 6);
     ctx.fill();
 
-    // 차량 유리창 (Front/Rear Windshield)
-    ctx.fillStyle = "#2c3e50";
+    // 루프 & 유릿창
+    ctx.fillStyle = "#1e272e";
     ctx.beginPath();
     ctx.roundRect(-carWidth/6, -carHeight/2 + 3, carWidth/3, carHeight - 6, 3);
     ctx.fill();
 
-    // 헤드라이트 (진행 방향)
-    ctx.fillStyle = "#f39c12";
+    // 헤드라이트
+    ctx.fillStyle = "#f1c40f";
     ctx.fillRect(carWidth/2 - 2, -carHeight/2 + 3, 3, 4);
     ctx.fillRect(carWidth/2 - 2, carHeight/2 - 7, 3, 4);
 
     ctx.restore();
 
-    // 5. 상태 안내 텍스트 표시
+    // 7. 파티클 이펙트 업데이트
+    updateAndDrawSparks();
+
+    // 8. 텍스트 지표
     ctx.font = "bold 16px 'Segoe UI', sans-serif";
-    if (isSlipped) {{
+    if (isCollided) {{
         ctx.fillStyle = "#e74c3c";
-        ctx.fillText("💥 원심력으로 도로 이탈 발생!", 20, 40);
+        ctx.fillText("💥 가드레일 충돌 발생!", 20, 40);
+    }} else if (carProgress > 0 && !config.is_safe && carProgress > slipPoint) {{
+        ctx.fillStyle = "#e67e22";
+        ctx.fillText("⚠️ 원심력으로 이탈 중...", 20, 40);
     }} else if (carProgress > 0) {{
         ctx.fillStyle = "#2ecc71";
         ctx.fillText("🏎️ 안전하게 코너링 중", 20, 40);
     }} else {{
-        ctx.fillStyle = "#aaaaaa";
+        ctx.fillStyle = "#ffffff";
         ctx.fillText("🏎️ 시뮬레이션 대기 중", 20, 40);
     }}
 }}
@@ -255,13 +366,15 @@ function drawScene(carProgress) {{
 function animate() {{
     if (!isAnimating) return;
     
-    // 주행 속도에 비례한 애니메이션 속도 제어
-    const speedFactor = 0.003 + (config.user_speed / 150) * 0.008;
+    const speedFactor = 0.003 + (config.user_speed / 150) * 0.007;
     progress += speedFactor;
 
     if (progress > 1.2) {{
-        isAnimating = false;
-        return;
+        // 충돌 상태면 스파크만 조금 더 연출 후 종료
+        if (sparks.length === 0) {{
+            isAnimating = false;
+            return;
+        }}
     }}
 
     drawScene(Math.min(progress, 1.2));
@@ -270,19 +383,20 @@ function animate() {{
 
 function startSimulation() {{
     if (animId) cancelAnimationFrame(animId);
+    sparks = [];
     progress = 0;
     isAnimating = true;
     animate();
 }}
 
-// 초기 화면 렌더링
+// 초기 화면
 drawScene(0);
 </script>
 </body>
 </html>
 """
 
-components.html(canvas_html, height=480)
+components.html(canvas_html, height=500)
 
 st.markdown("---")
 
