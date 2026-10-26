@@ -1,3 +1,4 @@
+import time
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -84,14 +85,106 @@ else:
 st.markdown("---")
 
 # =============================================================================
-# 4. 2D 주행 애니메이션 시각화 (Plotly Animation Frames)
+# 4. Streamlit 버튼 제어형 2D 주행 애니메이션
 # =============================================================================
 st.subheader("🎬 2D 커브길 주행 애니메이션 시뮬레이션")
-st.caption("아래 플레이 버튼(▶)을 누르면 차량의 움직임을 시뮬레이션할 수 있습니다.")
 
-# 4-1. 도로 궤적 데이터 (90도 곡선)
+# 애니메이션 재생 버튼
+run_anim = st.button("▶️ 커브길 주행 시뮬레이션 시작", use_container_width=True, type="primary")
+
+# 그래프가 그려질 동적 프레임 공간
+plot_place = st.empty()
+
+# 도로 궤적 데이터 (90도 곡선)
 theta = np.linspace(0, np.pi / 2, 60)
 x_road = radius * np.cos(theta)
 y_road = radius * np.sin(theta)
 
-# 4-2. 애니메이션 프
+def create_figure(curr_x, curr_y, car_color, status_text):
+    """현재 차량 위치 데이터를 받아 Plotly Figure를 만들어주는 함수"""
+    fig = go.Figure()
+
+    # 도로 중앙선 (회색 점선)
+    fig.add_trace(go.Scatter(
+        x=x_road, y=y_road,
+        mode='lines',
+        line=dict(color='gray', width=8, dash='dash'),
+        name='도로 중앙선'
+    ))
+
+    # 차량 위치
+    fig.add_trace(go.Scatter(
+        x=[curr_x], y=[curr_y],
+        mode='markers+text',
+        marker=dict(size=26, color=car_color, symbol='square'),
+        text=[status_text],
+        textposition="top right",
+        name='차량'
+    ))
+
+    fig.update_layout(
+        xaxis=dict(title="X 좌표 (m)", range=[-15, radius + 45], zeroline=False),
+        yaxis=dict(title="Y 좌표 (m)", range=[-15, radius + 45], zeroline=False),
+        height=500,
+        showlegend=False,
+        margin=dict(l=20, r=20, t=30, b=30)
+    )
+    return fig
+
+# 애니메이션 연출 로직
+total_steps = 30
+slip_step = int(total_steps * 0.45)
+
+if run_anim:
+    # 버튼을 누르면 time.sleep을 이용해 프레임을 순차적으로 업데이트
+    for i in range(total_steps + 1):
+        if is_safe or i <= slip_step:
+            # 정상 코너링 구간
+            angle = (np.pi / 2) * (i / total_steps)
+            curr_x = radius * np.cos(angle)
+            curr_y = radius * np.sin(angle)
+            car_color = "#2ECC71"  # 초록색
+            status_text = "🏎️ 안전 주행 중"
+        else:
+            # 도로 이탈(접선 방향 진행) 구간
+            slip_angle = (np.pi / 2) * (slip_step / total_steps)
+            start_x = radius * np.cos(slip_angle)
+            start_y = radius * np.sin(slip_angle)
+
+            dx = -np.sin(slip_angle)
+            dy = np.cos(slip_angle)
+
+            over_step = i - slip_step
+            curr_x = start_x + dx * (radius * 0.04 * over_step)
+            curr_y = start_y + dy * (radius * 0.04 * over_step)
+            car_color = "#E74C3C"  # 빨간색
+            status_text = "💥 원심력으로 이탈 중!"
+
+        fig = create_figure(curr_x, curr_y, car_color, status_text)
+        plot_place.plotly_chart(fig, use_container_width=True)
+        time.sleep(0.04)  # 매 프레임 간격 (초)
+else:
+    # 버튼 누르기 전 대기 상태 (출발점 표시)
+    fig = create_figure(x_road[0], y_road[0], "#2ECC71", "🏎️ 대기 중")
+    plot_place.plotly_chart(fig, use_container_width=True)
+
+st.markdown("---")
+
+# =============================================================================
+# 5. 도로 조건별 안전 속도 비교 차트
+# =============================================================================
+st.subheader("📊 곡선 반경(r)에 따른 노면 상태별 안전 속도 비교")
+
+r_range = np.linspace(10, 200, 100)
+v_dry = np.sqrt(0.8 * G * r_range) * 3.6
+v_wet = np.sqrt(0.4 * G * r_range) * 3.6
+v_ice = np.sqrt(0.1 * G * r_range) * 3.6
+
+df_chart = pd.DataFrame({
+    "곡선 반경 r (m)": r_range,
+    "맑음 (μ=0.8)": v_dry,
+    "비 (μ=0.4)": v_wet,
+    "눈/빙판 (μ=0.1)": v_ice
+}).set_index("곡선 반경 r (m)")
+
+st.line_chart(df_chart)
