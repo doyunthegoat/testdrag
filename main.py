@@ -46,7 +46,7 @@ radius = st.sidebar.slider(
     max_value=200,
     value=80,
     step=10,
-    help="대한민국 고속도로 설계기준 곡선반경입니다. (20~50m: 나들목/람프 급커브, 100m~200m: 본선 커브)"
+    help="대한민국 고속도로 설계기준 곡선반경입니다. (20~50m: 나들목/램프 급커브, 100m~200m: 본선 커브)"
 )
 
 # 1-3. 차량 진입 속도 (v) 설정
@@ -117,4 +117,7 @@ canvas_code = f"""
         padding-top: 10px;
     }}
     .btn-container {{
-        margin-bottom: 1
+        margin-bottom: 12px;
+    }}
+    .start-btn {{
+        background: linear-gradient(135deg, #ff4b4
